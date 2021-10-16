@@ -26,12 +26,14 @@ Rename the directory containing the BAM files by running `mv analysis/bwamem ana
 Now rename the directory containing the VCF files (`mv analysis/bcftools_call analysis/foo_bcftools_call`) and check again. Can you explain why Snakemake wants to run jobs now? Don't change the directory name back just yet.
 
 ### Ex 4
-You may have noticed that there is an unused rule in the 'Snakefile' called 'filt_bams'. This rule filter for only properly paired and unduplicated alignments. Can you modify the workflow so that the 'bcftools_call' rule uses these filtered alignments for variant calling? You need to make a simple change to two lines of code. Confirm that the 'filt_bams' rule is going to be run by running `snakemake -npr` again. Produce the DAG figure from Ex 1 again to see the additional jobs in the DAG.
+You may have noticed that there is an unused rule in the 'Snakefile' called 'filt_bams'. This rule filter for only properly paired and unduplicated alignments. Can you modify the workflow so that the 'bcftools_call' rule uses these filtered alignments for variant calling? You need to make a simple change to two lines of code. Confirm that the 'filt_bams' rule is going to be run by running `snakemake -npr` again. Produce the DAG figure from Ex 1 again to see the additional jobs in the DAG. Note how using a workflow manager makes it easy to modify parts of your workflow by making the workflow more modular. 
 
 When you are done, run `mv analysis/foo_bcftools_call analysis/bcftools_call` to change the directory name back.
 
 ### Ex 5
 Look at the 'bcftools_call' rule in the 'Snakefile'. Note that we ask 'bcftools mpileup' to consider only alignments with a MAPQ score of >=30. What if we want to compare the variant calls using alignments with a minimum MAPQ of 10 versus 30? The workflow is written so that you can modify (or add) just one line of code to obtain variant calls using two different minimum MAPQ settings. Try to make this modification and run `snakemake -npr` again; note the additional jobs to be run.
+
+Note how powerful it is to be able to easily test different settings or combination of settings using a workflow manager.
 
 ### BONUS: Ex 6
 The two samples we have been working with represent two different strains of mice (see 'bin/samples.tsv'). Sometimes it is desirable to rename files to biologically meaningful names from the beginning so that all downstream files also have biologically meaningful names. Can you write a new rule to rename the fastq files based on the 'strain' column in the samplesheet and make the bwamem rule use these as input instead? Ideally, this new rule would use `ln -sr {fastq_file} {new_file}` to make use of symlinks instead of having to store a second copy of each fastq file.
