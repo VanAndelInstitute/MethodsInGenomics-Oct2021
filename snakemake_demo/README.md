@@ -1,6 +1,6 @@
 # Snakemake demo
 
-This is a toy Snakemake workflow for demonstrating some of the capabilities of Snakemake.
+This is a toy Snakemake workflow for demonstrating some of the capabilities of Snakemake. This repo contains fastq files from two strains of mice in 'raw_data/' downloaded from the SRA using the 'get_fqs.sh' script included. The Snakemake workflow aligns the raw reads to the reference genome indicated in 'bin/config.yaml' using `bwa mem` then calls variants using `bcftools`.
 
 ## Exercises
 
