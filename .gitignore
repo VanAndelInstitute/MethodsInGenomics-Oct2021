@@ -1,0 +1,4 @@
+snakemake_demo/.snakemake
+snakemake_demo/logs
+snakemake_demo/benchmarks
+snakemake_demo/analysis

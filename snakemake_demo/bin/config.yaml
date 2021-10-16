@@ -1,0 +1,12 @@
+ref:
+  sequence:       /varidata/research/projects/bbc/versioned_references/2021-08-10_11.12.27_v6/data/mm10_gencode_plus_viruses_and_cfmedips/sequence/mm10_gencode_plus_viruses_and_cfmedips.fa
+  fai:            /varidata/research/projects/bbc/versioned_references/2021-08-10_11.12.27_v6/data/mm10_gencode_plus_viruses_and_cfmedips/sequence/mm10_gencode_plus_viruses_and_cfmedips.fa.fai
+  index:          /varidata/research/projects/bbc/versioned_references/2021-08-10_11.12.27_v6/data/mm10_gencode_plus_viruses_and_cfmedips/indexes/bwa/mm10_gencode_plus_viruses_and_cfmedips
+
+
+modules:
+    bcftools: bbc/bcftools/bcftools-1.12
+    bwa: bbc/bwa/bwa-0.7.17
+    samblaster: bbc/samblaster/samblaster-0.1.26
+    samtools: bbc/samtools/samtools-1.12
+

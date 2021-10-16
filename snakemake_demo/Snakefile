@@ -1,0 +1,134 @@
+import pandas as pd
+import numpy as np
+import os
+import re
+import itertools
+from snakemake.utils import validate, min_version
+##### set minimum snakemake version #####
+min_version("6.1.0")
+
+configfile: "bin/config.yaml"
+
+ref_fa = config['ref']['sequence']
+ref_fai = config['ref']['fai']
+bwa_index = config['ref']['index']
+
+samples = pd.read_table("bin/samples.tsv")
+
+rule all:
+    input:
+       "analysis/bcftools_call/all.minMQ30.filt.vcf", 
+
+rule bwamem:
+    input:
+        expand("raw_data/{{sample}}_R{read}.fq.gz", read=["1","2"])
+    output:
+        outbam="analysis/bwamem/{sample}.bam",
+        outbai="analysis/bwamem/{sample}.bam.bai",
+        flagstat="analysis/bwamem/{sample}.bam.flagstat",
+        samblaster_err="analysis/bwamem/{sample}.samblaster.e",
+    log:
+        stdout="logs/bwamem/{sample}.o",
+        stderr="logs/bwamem/{sample}.e",
+    benchmark:
+        "benchmarks/bwamem/{sample}.txt"
+    params:
+        bwa_idx=bwa_index,
+    threads: 4
+    envmodules:
+        config['modules']['bwa'],
+        config['modules']['samblaster'],
+        config['modules']['samtools'],
+    resources:
+        mem_gb=60
+    shell:
+        """
+        bwa mem \
+        -t {threads} \
+        {params.bwa_idx} \
+        {input} | \
+        samblaster 2>{output.samblaster_err} | \
+        samtools sort \
+        -m 6G \
+        -@ {threads} \
+        -o {output.outbam} \
+        -
+
+        echo "END bwamem"
+        echo "END bwamem" 1>&2
+
+        samtools index -@ {threads} {output.outbam}
+
+        echo "END indexing"
+        echo "END indexing" 1>&2
+        
+        samtools flagstat -@ {threads} {output.outbam} > {output.flagstat}
+
+        echo "END flagstat"
+        echo "END flagstat" 1>&2
+ 
+        """
+
+rule filt_bams:
+    """
+    Filter for properly paired, primary alignment, remove unmapped. Remove duplicate reads.
+    """
+    input:
+        "analysis/bwamem/{sample}.bam"
+    output:
+        bam="analysis/filt_bams/{sample}.bam",
+        bai="analysis/filt_bams/{sample}.bam.bai",
+        flagstat="analysis/filt_bams/{sample}.bam.flagstat"
+    log:
+        stdout="logs/filt_bams/{sample}.o",
+        stderr="logs/filt_bams/{sample}.e",
+    benchmark:
+        "benchmarks/filt_bams/{sample}.txt"
+    params:
+        flags_to_exclude=1804,
+        flags_to_include=2
+    threads: 4
+    resources:
+        mem_gb=60
+    envmodules:
+        config['modules']['samtools']
+    shell:
+        """
+        samtools view \
+              -@ {threads} \
+              -F {params.flags_to_exclude} \
+              -f {params.flags_to_include} \
+              -b -o {output.bam} {input} 
+
+        samtools index {output.bam}
+
+        samtools flagstat -@ {threads} {output.bam} > {output.flagstat}
+        """
+
+rule bcftools_call:
+    input:
+        fa=config['ref']['sequence'],
+        bam=expand("analysis/bwamem/{sample}.bam", sample=samples['sample']),
+        bai=expand("analysis/bwamem/{sample}.bam.bai", sample=samples['sample'])
+    output:
+        vcf="analysis/bcftools_call/all.minMQ{minMQ}.vcf",
+        filt_vcf="analysis/bcftools_call/all.minMQ{minMQ}.filt.vcf",
+    log:
+        stdout="logs/bcftools_call/all.minMQ{minMQ}.o",
+        stderr="logs/bcftools_call/all.minMQ{minMQ}.e",
+    benchmark:
+        "benchmarks/bcftools_call/all.minMQ{minMQ}.txt"
+    params:
+        bwa_idx=bwa_index,
+    threads: 4
+    envmodules:
+        config['modules']['bcftools'],
+    resources:
+        mem_gb=60
+    shell:
+        """
+        bcftools mpileup --threads {threads} --min-MQ {wildcards.minMQ} -f {input.fa} {input.bam} | \
+        bcftools call --threads {threads} -mv -o {output.vcf} -
+
+        bcftools filter --threads {threads} -i'%QUAL>100' -o {output.filt_vcf} {output.vcf}
+        """
