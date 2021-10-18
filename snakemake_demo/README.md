@@ -8,8 +8,7 @@ All the exercises below assume that you have Snakemake in your PATH (you can run
 
 ### Ex 1
 - Run `snakemake -npr` to see the different jobs that will be run by Snakemake.
-- Run `snakemake --dag | dot -Tpng > dag.png`. Take a look at the figure.
-- Run `snakemake --rulegraph | dot -Tpng > rulegraph.png`. Take a look at the figure.
+- Run `snakemake --dag | dot -Tpng > dag.png`. Take a look at the figure; this is a useful way to summarize your workflow in a figure. For projects with many samples, you can try `snakemake --rulegraph | dot -Tpng > dag.png`.
 
 ### Ex 2
 In Ex 1, we learned what jobs will be run by the workflow. Here let's go ahead and run these jobs via the PBS job system on the HPC. First open up 'bin/run_snakemake.sh' and look at the code; the '--cluster' option in this invocation of Snakemake tells it how to submit each job to the HPC.
