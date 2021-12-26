@@ -1,0 +1,126 @@
+import pandas as pd
+import numpy as np
+import os
+import re
+import itertools
+from snakemake.utils import validate, min_version
+from snakemake.remote.S3 import RemoteProvider as S3RemoteProvider
+S3 = S3RemoteProvider()
+##### set minimum snakemake version #####
+min_version("6.1.0")
+
+configfile: "bin/config_aws.yaml"
+
+samples = pd.read_table("bin/samples.tsv")
+
+rule all:
+    input:
+       "analysis/bcftools_call/all.minMQ30.filt.vcf", 
+
+rule bwamem:
+    conda: "bin/conda_env.yaml"
+    input:
+        fastq=expand("raw_data/{{sample}}_R{read}.fq.gz", read=["1","2"]),
+        index=S3.remote(multiext(config['ref']['index'], ".amb", ".ann", ".bwt", ".pac", ".sa"))
+    output:
+        outbam="analysis/bwamem/{sample}.bam",
+        outbai="analysis/bwamem/{sample}.bam.bai",
+        flagstat="analysis/bwamem/{sample}.bam.flagstat",
+        samblaster_err="analysis/bwamem/{sample}.samblaster.e",
+    log:
+        stdout="logs/bwamem/{sample}.o",
+        stderr="logs/bwamem/{sample}.e",
+    benchmark:
+        "benchmarks/bwamem/{sample}.txt"
+    params:
+        index=lambda w, input: os.path.splitext(input.index[0])[0],
+    threads: 4
+    resources:
+        mem_gb=60
+    shell:
+        """
+        bwa mem \
+        -t {threads} \
+        {params.index} \
+        {input.fastq} | \
+        samblaster 2>{output.samblaster_err} | \
+        samtools sort \
+        -m 6G \
+        -@ {threads} \
+        -o {output.outbam} \
+        -
+
+        echo "END bwamem"
+        echo "END bwamem" 1>&2
+
+        samtools index -@ {threads} {output.outbam}
+
+        echo "END indexing"
+        echo "END indexing" 1>&2
+        
+        samtools flagstat -@ {threads} {output.outbam} > {output.flagstat}
+
+        echo "END flagstat"
+        echo "END flagstat" 1>&2
+ 
+        """
+
+rule filt_bams:
+    """
+    Filter for properly paired, primary alignment, remove unmapped. Remove duplicate reads.
+    """
+    conda: "bin/conda_env.yaml"
+    input:
+        "analysis/bwamem/{sample}.bam"
+    output:
+        bam="analysis/filt_bams/{sample}.bam",
+        bai="analysis/filt_bams/{sample}.bam.bai",
+        flagstat="analysis/filt_bams/{sample}.bam.flagstat"
+    log:
+        stdout="logs/filt_bams/{sample}.o",
+        stderr="logs/filt_bams/{sample}.e",
+    benchmark:
+        "benchmarks/filt_bams/{sample}.txt"
+    params:
+        flags_to_exclude=1804,
+        flags_to_include=2
+    threads: 4
+    resources:
+        mem_gb=60
+    shell:
+        """
+        samtools view \
+              -@ {threads} \
+              -F {params.flags_to_exclude} \
+              -f {params.flags_to_include} \
+              -b -o {output.bam} {input} 
+
+        samtools index {output.bam}
+
+        samtools flagstat -@ {threads} {output.bam} > {output.flagstat}
+        """
+
+rule bcftools_call:
+    conda: "bin/conda_env.yaml"
+    input:
+        fa=S3.remote(config['ref']['sequence']),
+        bam=expand("analysis/bwamem/{sample}.bam", sample=samples['sample']),
+        bai=expand("analysis/bwamem/{sample}.bam.bai", sample=samples['sample'])
+    output:
+        vcf="analysis/bcftools_call/all.minMQ{minMQ}.vcf",
+        filt_vcf="analysis/bcftools_call/all.minMQ{minMQ}.filt.vcf",
+    log:
+        stdout="logs/bcftools_call/all.minMQ{minMQ}.o",
+        stderr="logs/bcftools_call/all.minMQ{minMQ}.e",
+    benchmark:
+        "benchmarks/bcftools_call/all.minMQ{minMQ}.txt"
+    threads: 4
+    resources:
+        mem_gb=60
+    shell:
+        """
+        bcftools mpileup --threads {threads} --min-MQ {wildcards.minMQ} -f {input.fa} {input.bam} | \
+        bcftools call --threads {threads} -mv -o {output.vcf} -
+
+        bcftools filter --threads {threads} -i'%QUAL>100' -o {output.filt_vcf} {output.vcf}
+        """
